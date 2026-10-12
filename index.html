@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>動画</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+    body {
+      min-height: 100dvh;
+    }
+    .stage {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: #000;
+      padding-top: env(safe-area-inset-top);
+    }
+    .rotator {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+    }
+    .frame {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+    video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+    video::-webkit-media-controls-fullscreen-button {
+      display: none;
+    }
+    .toolbar {
+      flex: none;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    }
+    .expand {
+      width: 100%;
+      min-height: 52px;
+      border: 0;
+      border-radius: 14px;
+      background: #fff;
+      color: #111;
+      font: 700 17px/1 system-ui, sans-serif;
+    }
+    .stage.is-open {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      padding-top: 0;
+      overflow: hidden;
+    }
+    .stage.is-open .frame {
+      position: absolute;
+      inset: 0;
+    }
+    .stage.is-open .toolbar {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
+      z-index: 2;
+      padding: 0;
+    }
+    .stage.is-open .expand {
+      width: auto;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+    }
+    .stage.is-open.force-landscape .rotator {
+      position: absolute;
+      top: 0;
+      left: 100%;
+      width: 100vh;
+      height: 100vw;
+      width: 100dvh;
+      height: 100dvw;
+      transform: rotate(90deg);
+      transform-origin: top left;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="rotator">
+      <div class="frame">
+        <video src="static/video/ホムカミデータサンプル.mp4" controls autoplay playsinline controlslist="nofullscreen"></video>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="expand" aria-label="横画面で全画面">拡大</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const portraitQuery = window.matchMedia("(orientation: portrait)");
+
+    function fullscreenElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    function requestFullscreen(element) {
+      const request = element.requestFullscreen || element.webkitRequestFullscreen;
+      if (!request) return Promise.reject(new Error("fullscreen unsupported"));
+      return Promise.resolve(request.call(element));
+    }
+
+    function exitFullscreen() {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (!exit || !fullscreenElement()) return Promise.resolve();
+      return Promise.resolve(exit.call(document));
+    }
+
+    function render(stage) {
+      const open = stage.classList.contains("is-open");
+      const rotate = open && portraitQuery.matches && !stage.dataset.orientationLocked;
+      stage.classList.toggle("force-landscape", rotate);
+      const button = stage.querySelector(".expand");
+      button.textContent = open ? "閉じる" : "拡大";
+      button.setAttribute("aria-label", open ? "全画面を終了" : "横画面で全画面");
+    }
+
+    async function openStage(stage) {
+      stage.classList.add("is-open");
+      try {
+        await requestFullscreen(stage);
+        if (fullscreenElement() === stage) stage.dataset.usingFullscreen = "1";
+      } catch (error) {}
+
+      try {
+        if (screen.orientation?.lock && fullscreenElement() === stage) {
+          await screen.orientation.lock("landscape");
+          stage.dataset.orientationLocked = "1";
+        }
+      } catch (error) {}
+
+      render(stage);
+    }
+
+    async function closeStage(stage) {
+      const usingFullscreen = stage.dataset.usingFullscreen === "1";
+      stage.classList.remove("is-open", "force-landscape");
+      delete stage.dataset.orientationLocked;
+      delete stage.dataset.usingFullscreen;
+      try { screen.orientation?.unlock?.(); } catch (error) {}
+      if (usingFullscreen) {
+        try { await exitFullscreen(); } catch (error) {}
+      }
+      render(stage);
+    }
+
+    document.querySelectorAll(".stage").forEach((stage) => {
+      stage.querySelector(".expand").addEventListener("click", () => {
+        if (stage.classList.contains("is-open")) closeStage(stage);
+        else openStage(stage);
+      });
+    });
+
+    function refresh() {
+      document.querySelectorAll(".stage").forEach((stage) => {
+        if (stage.dataset.usingFullscreen === "1" && fullscreenElement() !== stage) {
+          stage.classList.remove("is-open", "force-landscape");
+          delete stage.dataset.orientationLocked;
+          delete stage.dataset.usingFullscreen;
+        }
+        render(stage);
+      });
+    }
+
+    document.addEventListener("fullscreenchange", refresh);
+    document.addEventListener("webkitfullscreenchange", refresh);
+    portraitQuery.addEventListener("change", refresh);
+  </script>
+</body>
+</html>
