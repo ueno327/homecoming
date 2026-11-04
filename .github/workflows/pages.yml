@@ -15,10 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,6 +26,7 @@ jobs:
           mkdir -p _site/static/video
           cp index.html .nojekyll _site/
           cp -R static/video/*.mp4 _site/static/video/
+          ls -lh _site/static/video/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -38,6 +36,13 @@ jobs:
         with:
           path: _site
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
